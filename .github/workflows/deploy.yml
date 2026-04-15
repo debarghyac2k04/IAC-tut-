@@ -1,0 +1,35 @@
+name: Deploy Application
+
+# Only run this pipeline when code is pushed to the 'main' branch
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout Code
+      uses: actions/checkout@v3
+
+    - name: Set up SSH Key
+      run: |
+        mkdir -p ~/.ssh
+        echo "${{ secrets.EC2_SSH_KEY }}" > ~/.ssh/id_rsa
+        chmod 600 ~/.ssh/id_rsa
+        ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
+
+    - name: Install Ansible
+      run: sudo apt update && sudo apt install -y ansible
+
+    - name: Create Dynamic Inventory File
+      run: |
+        echo "[webservers]" > ansible/inventory.ini
+        echo "${{ secrets.EC2_HOST }} ansible_user=${{ secrets.EC2_USERNAME }} ansible_ssh_common_args='-o StrictHostKeyChecking=no'" >> ansible/inventory.ini
+
+    - name: Run Ansible Playbook
+      run: |
+        cd ansible
+        ansible-playbook playbook.yml --private-key ~/.ssh/id_rsa
